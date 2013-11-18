@@ -76,6 +76,7 @@ typedef enum EPL_DEVICE_TYPE_ENUM {
     DEV_DP83640
 }EPL_DEVICE_TYPE_ENUM;
 
+/*
 typedef struct EPL_DEV_INFO {
     EPL_DEVICE_TYPE_ENUM deviceType;
     NS_UINT numOfPorts;
@@ -83,9 +84,11 @@ typedef struct EPL_DEV_INFO {
     NS_UINT deviceRevision;
     NS_UINT numExtRegisterPages;
 }EPL_DEV_INFO,*PEPL_DEV_INFO;
+*/
 
-#include "platform.h"   // needed for OAI_DEV_HANDLE
+#include "epl_platform.h"   // needed for OAI_DEV_HANDLE
 
+/*
 typedef struct DEVICE_OBJ {
     struct DEVICE_OBJ *link;
     struct PORT_OBJ *portObjs;
@@ -94,23 +97,22 @@ typedef struct DEVICE_OBJ {
     EPL_DEV_INFO devInfo;
     EPL_DEVICE_CAPA_ENUM capa;
 }DEVICE_OBJ,*PDEVICE_OBJ;
-
+*/
+ 
 typedef struct PORT_OBJ {
-    struct PORT_OBJ *link;              // Must be first field in struct
+//    struct PORT_OBJ *link;              // Must be first field in struct
     OAI_DEV_HANDLE oaiDevHandle;
-    PDEVICE_OBJ deviceObj;
+//    PDEVICE_OBJ deviceObj;
     NS_UINT portMdioAddress;
-	EPL_ENUM_TYPE ifType;				// Type of interface to use
-    NS_BOOL usePhyControlFrames;
-    NS_BOOL pcfDA_SEL;
+//    NS_BOOL pcfDA_SEL;
     NS_UINT rxConfigOptions;
     NS_UINT tsSecondsLen;
     NS_UINT rxTsNanoSecOffset;
     NS_UINT rxTsSecondsOffset;
     NS_UINT psfConfigOptions;
-    void *psfList;
+//    void *psfList;
     NS_UINT8 psfSrcMacAddr[6];
-    void *pktList;
+//    void *pktList;
 }PORT_OBJ,*PPORT_OBJ;
 
 #define PEPL_DEV_HANDLE     PDEVICE_OBJ

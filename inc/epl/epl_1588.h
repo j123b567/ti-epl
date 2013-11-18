@@ -259,6 +259,13 @@ EXPORT void
         IN NS_BOOL tempAdjFlag,
         IN NS_BOOL adjDirectionFlag);
 
+EXPORT void
+    PTPClockGetRateAdjustment (
+        IN PEPL_PORT_HANDLE portHandle,
+        OUT NS_UINT32 * rateAdjValue,
+        OUT NS_BOOL * tempAdjFlag,
+        OUT NS_BOOL * adjDirectionFlag);
+
 EXPORT NS_UINT
     PTPCheckForEvents (
         IN PEPL_PORT_HANDLE portHandle);

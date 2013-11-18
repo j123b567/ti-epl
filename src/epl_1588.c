@@ -36,7 +36,7 @@
 //      GetNextPhyMessage
 //****************************************************************************
 
-#include "epl.h"
+#include "epl/epl.h"
 
 //****************************************************************************
 EXPORT void
@@ -278,8 +278,12 @@ NS_UINT8  i;
 NS_UINT32 ipChecksum, rollover;
 
     ptr = srcAddrs[ srcAddrToUse ];
-    *(NS_UINT32*)&portHdl->psfSrcMacAddr[0] = *(NS_UINT32*)&ptr[0];
-    *(NS_UINT16*)&portHdl->psfSrcMacAddr[4] = *(NS_UINT16*)&ptr[4];
+    portHdl->psfSrcMacAddr[0] = ptr[0];
+    portHdl->psfSrcMacAddr[1] = ptr[1];
+    portHdl->psfSrcMacAddr[2] = ptr[2];
+    portHdl->psfSrcMacAddr[3] = ptr[3];
+    portHdl->psfSrcMacAddr[4] = ptr[4];
+    portHdl->psfSrcMacAddr[5] = ptr[5];
 
     reg = 0;
     if( statusConfigOptions & STSOPT_LITTLE_ENDIAN ) reg |= P640_PKT_ENDIAN;
@@ -292,7 +296,7 @@ NS_UINT32 ipChecksum, rollover;
 
     // Ensure that PCF read responses are enabled if that is our only mechanism
     // to interact with the PHY, otherwise everything will stop working
-    if ( statusConfigOptions & STSOPT_PCFR_EN || portHandle->oaiDevHandle->pcfDefault ) {
+    if ( statusConfigOptions & STSOPT_PCFR_EN ) {
         reg |= P640_PKT_PCFR_EN;
     }
 
@@ -841,6 +845,33 @@ NS_UINT reg;
     return;
 }
 
+EXPORT void
+    PTPClockGetRateAdjustment (
+        IN PEPL_PORT_HANDLE portHandle,
+        OUT NS_UINT32 * rateAdjValue,
+        OUT NS_BOOL * tempAdjFlag,
+        OUT NS_BOOL * adjDirectionFlag)
+{
+NS_UINT reg;
+
+    OAIBeginMultiCriticalSection( portHandle->oaiDevHandle);
+    reg = EPLReadReg( portHandle, PHY_PG4_PTP_RATEH);
+
+    *tempAdjFlag = (P640_PTP_TMP_RATE & reg) ? TRUE : FALSE;
+    *adjDirectionFlag = (P640_PTP_RATE_DIR & reg) ? TRUE : FALSE;
+    
+    *rateAdjValue = reg & P640_PTP_RATE_HI_MASK;
+    *rateAdjValue <<= P640_PTP_RATE_HI_SHIFT;
+
+    reg = EPLReadReg( portHandle, PHY_PG4_PTP_RATEL);
+
+    *rateAdjValue |= reg & 0xFFFF;    
+    
+    OAIEndMultiCriticalSection( portHandle->oaiDevHandle);
+    return;
+}
+
+
 //****************************************************************************
 EXPORT NS_UINT
     PTPCheckForEvents (
@@ -1192,8 +1223,8 @@ NS_UINT reg;
     
     EPLWriteReg( portHandle, PHY_PG4_PTP_TDR, expireTimeNanoSeconds & 0xFFFF);
     
-    reg = (expireTimeNanoSeconds >> 16) | (initialStateFlag ? 0x80000000 : 0) |
-          (waitForRolloverFlag ? 0x40000000 : 0);
+    reg = (expireTimeNanoSeconds >> 16) | (initialStateFlag ? 0x8000 : 0) |
+          (waitForRolloverFlag ? 0x4000 : 0);
     EPLWriteReg( portHandle, PHY_PG4_PTP_TDR, reg);
     EPLWriteReg( portHandle, PHY_PG4_PTP_TDR, expireTimeSeconds & 0xFFFF);
     EPLWriteReg( portHandle, PHY_PG4_PTP_TDR, expireTimeSeconds >> 16);
@@ -1335,7 +1366,7 @@ EXPORT NS_BOOL
 //  path and synchronization delays.
 //****************************************************************************
 {
-PPORT_OBJ portHdl = (PPORT_OBJ)portHandle;
+//PPORT_OBJ portHdl = (PPORT_OBJ)portHandle;
 NS_UINT reg, exSts, x;
 
     *eventBits = 0;
@@ -1414,6 +1445,25 @@ EXPORT NS_UINT
     return EPLReadReg( portHandle, PHY_PG6_PTP_GPIOMON);
 }
 
+
+//****************************************************************************
+NS_BOOL IsMacEqual(NS_UINT8 *adr1, NS_UINT8 *adr2)
+//  Compare two MAC addresses
+//  
+//  Returns
+//      Returns TRUE if MAC addresses are same
+//****************************************************************************
+{
+    if (adr1[0] != adr2[0]) return FALSE;
+    if (adr1[1] != adr2[1]) return FALSE;
+    if (adr1[2] != adr2[2]) return FALSE;
+    if (adr1[3] != adr2[3]) return FALSE;
+    if (adr1[4] != adr2[4]) return FALSE;
+    if (adr1[5] != adr2[5]) return FALSE;
+    return TRUE;
+}
+
+
 //****************************************************************************
 EXPORT NS_UINT8 *
     IsPhyStatusFrame (
@@ -1456,18 +1506,16 @@ static NS_UINT8 macDestAddr[6] = {0x01,0x1B,0x19,0x00,0x00,0x00};
     {
         // IPv4/UDP Frame
         if ( frameLength < 50)
-            return portHdl->psfList;
+            return NULL;
     
-        if ( *(NS_UINT32*)&frameBuffer[0] != *(NS_UINT32*)&ipDestAddr[0] || 
-             *(NS_UINT16*)&frameBuffer[4] != *(NS_UINT16*)&ipDestAddr[4])
-            return portHdl->psfList;
-            
-        if ( *(NS_UINT32*)&frameBuffer[6] != *(NS_UINT32*)&portHdl->psfSrcMacAddr[0] || 
-             *(NS_UINT16*)&frameBuffer[10] != *(NS_UINT16*)&portHdl->psfSrcMacAddr[4])
-            return portHdl->psfList;
+        if (!IsMacEqual(&frameBuffer[0], ipDestAddr))
+            return NULL;
+                   
+        if (!IsMacEqual(&frameBuffer[6], portHdl->psfSrcMacAddr))
+            return NULL;
             
         if ( frameBuffer[12] != 0x08 || frameBuffer[13] != 0x00)
-            return portHdl->psfList;
+            return NULL;
 
         return &frameBuffer[44];
     }
@@ -1475,18 +1523,16 @@ static NS_UINT8 macDestAddr[6] = {0x01,0x1B,0x19,0x00,0x00,0x00};
     {
         // Layer 2 Ethernet Frame
         if ( frameLength < 22)
-            return portHdl->psfList;
+            return NULL;
     
-        if ( *(NS_UINT32*)&frameBuffer[0] != *(NS_UINT32*)&macDestAddr[0] || 
-             *(NS_UINT16*)&frameBuffer[4] != *(NS_UINT16*)&macDestAddr[4])
-            return portHdl->psfList;
+        if (!IsMacEqual(&frameBuffer[0], macDestAddr))
+            return NULL;
             
-        if ( *(NS_UINT32*)&frameBuffer[6]  != *(NS_UINT32*)&portHdl->psfSrcMacAddr[0] || 
-             *(NS_UINT16*)&frameBuffer[10] != *(NS_UINT16*)&portHdl->psfSrcMacAddr[4])
-            return portHdl->psfList;
+        if (!IsMacEqual(&frameBuffer[6], portHdl->psfSrcMacAddr))
+            return NULL;
             
         if ( frameBuffer[12] != 0x88 || frameBuffer[13] != 0xF7)
-            return portHdl->psfList;
+            return NULL;
             
         return &frameBuffer[16];
     }
@@ -1563,17 +1609,8 @@ PPORT_OBJ portHdl = (PPORT_OBJ)portHandle;
 PHYMSG_MESSAGE *message = (PHYMSG_MESSAGE *)phyMessageOut;
 NS_UINT8 nextMsgOffset = 0;
 NS_UINT8 lEndian = portHdl->psfConfigOptions & STSOPT_LITTLE_ENDIAN;
-PHYMSG_LIST *psfList;
 
-    // Clear out the PSF List first
-    if( usePSFList && portHdl->psfList ) {
-        psfList = (PHYMSG_LIST *)portHdl->psfList;
-        *messageType = psfList->msgType;
-        memcpy( phyMessageOut, &psfList->phyMsg, sizeof( PHYMSG_MESSAGE ) );
-        portHdl->psfList = psfList->nxtMsg;
-        OAIFree( psfList );
-        return msgLocation; // Didn't do anything with it, send it back around
-    } // if( portHdl->psfList )
+(void)usePSFList;
 
     *messageType = 0xFF;
 
@@ -1629,6 +1666,7 @@ PHYMSG_LIST *psfList;
 
             message->EventStatus.ptpEstsRegBits = stsType & 0x0FFF;
             message->EventStatus.extendedEventStatusFlag = FALSE;
+            message->EventStatus.extendedEventInfo = 0;
             
             val = (message->EventStatus.ptpEstsRegBits & P640_EVNTS_TS_LEN_MASK) >> P640_EVNTS_TS_LEN_SHIFT;
             

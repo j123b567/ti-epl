@@ -12,45 +12,18 @@
 #ifndef _OAI_INCLUDE
 #define _OAI_INCLUDE
 
-#define WIN32_LEAN_AND_MEAN		// Exclude rarely-used stuff from Windows headers
-
-#include <windows.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <conio.h>
+#include <string.h>
 
 #include "epl.h"
 
-#define WritePort( port, data) _outp( (NS_UINT16)(port), (NS_UINT16)(data))
-#define ReadPort( port) _inp( (NS_UINT16)(port))
+//#define WritePort( port, data) _outp( (NS_UINT16)(port), (NS_UINT16)(data))
+//#define ReadPort( port) _inp( (NS_UINT16)(port))
 
 void 
-	OAIInitialize( 
-		IN OAI_DEV_HANDLE oaiDevHandle);
-
-void
-	*OAIAlloc( 
-		IN NS_UINT sizeInBytes);
-
-void 
-	OAIFree( 
-		IN void *memPtr);
-
-HANDLE 
-	OAICreateMutex( 
-		void );
-
-void 
-	OAIReleaseMutex( 
-		IN HANDLE hMutex );
-
-void 
-	OAIBeginCriticalSection( 
-		IN HANDLE hMutex );
-
-void 
-	OAIEndCriticalSection( 
-		IN HANDLE hMutex );
+    OAIInitialize( 
+        IN OAI_DEV_HANDLE oaiDevHandle);
 
 void 
     OAIBeginRegCriticalSection(
@@ -67,15 +40,8 @@ void
     OAIEndMultiCriticalSection(
         IN OAI_DEV_HANDLE oaiDevHandle);
 
-void
-	OAIManagementError(
-        IN void *oaiDevHandle);
 
 // Define EXPORTED if we're building for Windows
-#ifdef EXPORTED
-    #define EXPORT __declspec(dllexport)
-#else
-    #define EXPORT
-#endif
+#define EXPORT
 
 #endif // _OAI_INCLUDE

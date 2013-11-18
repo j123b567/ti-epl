@@ -9,14 +9,12 @@
 
 // Prevent inclusion of winsock.h in windows.h will be added as part 
 // epl.h by way of ptp stack includes.
-#define _WINSOCKAPI_   
-#include <windows.h>
-#undef  _WINSOCKAPI_    // undo hack above.
-
 #include <stdlib.h>
-#include <conio.h>
+#include "FreeRTOS.h"
+#include "semphr.h"
 
-#include "epl.h"
+
+#include "epl/epl.h"
 
 //****************************************************************************
 void 
@@ -33,80 +31,19 @@ void
 //      Nothing
 //****************************************************************************
 {
-    return;
-}
-
-//****************************************************************************
-void 
-	*OAIAlloc( 
-		IN NS_UINT sizeInBytes)
-
-//  Provides basic memory allocation.
-//
-//  sizeInBytes
-//      Size of the memory block to allocate in bytes.
-//
-//  Returns:
-//      Returns a pointer to the allocated memory block. If a failure 
-//      occurred allocating the memory, NULL is returned.
-//****************************************************************************
-{
-    return malloc( sizeInBytes);
-}
-
-
-//****************************************************************************
-void 
-	OAIFree( 
-		IN void *memPtr)
-
-//  Frees a memory block allocated using the OAIAlloc function.
-//
-//  memPtr
-//      Pointer to the memory block to free.
-//  
-//  Returns:
-//      Nothing
-//****************************************************************************
-{
-    free( memPtr);
-}
-
-//****************************************************************************
-HANDLE 
-	OAICreateMutex( 
-		void )
-
-//  Uses O/S specific function to create a mutex
-//
-//  Returns:
-//      HANDLE to the created mutex
-//****************************************************************************
-{
-    return CreateMutex( NULL, FALSE, NULL );
-}
-
-//****************************************************************************
-void
-	OAIReleaseMutex( 
-		HANDLE hMutex )
-
-//  Releases a previously created mutex
-//
-//  Returns:
-//      Nothing
-//****************************************************************************
-{
-	if( hMutex ) 
-		ReleaseMutex( hMutex );
-
-	return;
+    if (!oaiDevHandle->multiOpMutex) {
+        oaiDevHandle->multiOpMutex = xSemaphoreCreateMutex();
+    }
+    if (!oaiDevHandle->regularMutex) {
+        oaiDevHandle->regularMutex = xSemaphoreCreateMutex();
+    }
+    
 }
 
 //****************************************************************************
 void
 	OAIBeginCriticalSection( 
-		HANDLE hMutex )
+		xSemaphoreHandle hMutex )
 
 //  Begins a critical section given an arbitrary mutex handle.
 //  This provides a more flexible method of managing
@@ -115,14 +52,16 @@ void
 //      Nothing
 //****************************************************************************
 {
-    WaitForSingleObject( hMutex, INFINITE);
+    if(!xSemaphoreTake(hMutex, 1000)) {
+        PLATFORM_ASSERT("EPL_OAI", "xSemaphoreTake timeout");
+    }
     return;
 }
 
 //****************************************************************************
 void
 	OAIEndCriticalSection( 
-		HANDLE hMutex )
+		xSemaphoreHandle hMutex )
 
 //  Ends a critical section given an arbitrary mutex handle.
 //  This provides a more flexible method of managing
@@ -131,7 +70,7 @@ void
 //      Nothing
 //****************************************************************************
 {
-	OAIReleaseMutex( hMutex);
+    xSemaphoreGive(hMutex);
     return;
 }
 
@@ -152,7 +91,7 @@ void
         IN OAI_DEV_HANDLE oaiDevHandle)
 //****************************************************************************
 {
-    OAIReleaseMutex( oaiDevHandle->regularMutex);
+    OAIEndCriticalSection( oaiDevHandle->regularMutex);
     return;
 }
 
@@ -174,30 +113,6 @@ void
         IN OAI_DEV_HANDLE oaiDevHandle)
 //****************************************************************************
 {
-    OAIReleaseMutex( oaiDevHandle->multiOpMutex );
+    OAIEndCriticalSection( oaiDevHandle->multiOpMutex );
     return;
-}
- 
-//****************************************************************************
-void
-    OAIManagementError(
-        IN OAI_DEV_HANDLE oaiDevHandle)
-        
-//  EPL calls this function if a data integrity error is detected over the 
-//  management information interface. If a checksum mismatch between host 
-//  software's checksum tally and the hardware's checksum tally for register 
-//  reads and writes, this function is called. It indicates that one or more 
-//  bits read from or written to the Phy were corrupted. This would normally 
-//  indicate a serious system error and should be dealt with by the host 
-//  environment as necessary. 
-//
-//  oaiDevHandle
-//      Handle that represents the device that the error occurred on.
-//      The definition of this is completely up to higher layer software.
-//
-//  Returns:
-//      Nothing
-//****************************************************************************
-{
-	return;
 }
